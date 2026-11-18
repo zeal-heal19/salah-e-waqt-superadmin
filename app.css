@@ -117,6 +117,37 @@ td small { display: block; font-size: 12px; color: var(--faint); }
 tr.sel td { background: rgba(212,175,55,0.08); }
 tbody tr { cursor: pointer; }
 
+/* send promotion */
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.lbl, .picker legend { font-size: 13px; font-weight: 600; color: var(--gold-text); }
+.promo { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+.promo-form { flex: 999 1 420px; min-width: 0; gap: 18px; }
+.preview { flex: 1 1 280px; position: sticky; top: 24px; display: flex; flex-direction: column; gap: 8px; }
+.pv { padding: 14px; border-radius: 18px; background: #F2F3F7; color: #1F2330; display: flex; flex-direction: column; gap: 3px; }
+.pv-app { font-size: 11px; color: #5A5F70; }
+.pv-title { font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+.pv-body { font-size: 13px; line-height: 1.4; color: #2A2F3F; overflow-wrap: anywhere; white-space: pre-wrap; }
+.pv-img { margin-top: 8px; width: 100%; border-radius: 12px; display: block; }
+.drop { min-height: 120px; padding: 18px; border-radius: 14px; border: 1.5px dashed rgba(212,175,55,0.6); background: rgba(212,175,55,0.06);
+  color: var(--gold-text); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; cursor: pointer;
+  text-align: center; font-weight: 600; }
+.drop small { color: var(--faint); font-weight: 400; font-size: 12px; }
+.drop:hover { background: rgba(212,175,55,0.1); }
+input.sr-only:focus-visible + .drop, .field:focus-within .drop { outline: 2px solid var(--gold-text); outline-offset: 2px; }
+.imgpick { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px; border-radius: 14px; background: rgba(255,255,255,0.04); }
+.imgpick img { width: 72px; height: 72px; object-fit: cover; border-radius: 10px; }
+.picker { margin: 0; padding: 0; border: none; display: flex; flex-direction: column; gap: 6px; }
+.picker legend { padding: 0; margin-bottom: 6px; }
+.pick { min-height: 52px; padding: 8px 12px; border-radius: 12px; background: rgba(255,255,255,0.04); border: 1px solid transparent;
+  display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.pick:hover { border-color: rgba(255,255,255,0.18); }
+.pick.all { background: rgba(212,175,55,0.1); border-color: rgba(212,175,55,0.35); }
+.pick input { width: 20px; height: 20px; accent-color: var(--gold); flex: none; }
+.pick .title { font-size: 14px; }
+.sendbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding-top: 14px;
+  border-top: 1px solid rgba(255,255,255,0.1); }
+.sendbar .btn-gold { padding: 0 26px; }
+
 .loading { padding: 60px 0; text-align: center; color: var(--muted); }
 #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); max-width: calc(100% - 32px); padding: 12px 18px;
   border-radius: 12px; background: #11131C; border: 1px solid var(--line); font-size: 14px; opacity: 0; pointer-events: none;

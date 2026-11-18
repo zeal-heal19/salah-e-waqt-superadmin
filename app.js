@@ -8,6 +8,7 @@
   const API = window.ADMIN_CONFIG.apiUrl;
   const KEY = 'swAdminSession';
   const app = document.getElementById('app');
+  const PLAY_STORE = 'https://play.google.com/store/apps/details?id=com.salah_e_waqt.app';
 
   const S = {
     session: loadSession(),
@@ -19,7 +20,11 @@
     busy: null, // key of the card whose action is running
     results: {}, // registration id -> {kind, username, phone, message}
     selected: null, // masjid id highlighted on the subscribers page
+    promo: newPromo(),
   };
+  function newPromo() {
+    return { title: '', body: '', link: PLAY_STORE, image: null, chosen: new Set(), sending: false, result: null };
+  }
   const audio = new Audio();
   let playingKey = null;
   let map = null;
@@ -67,6 +72,9 @@
     x: '<circle cx="12" cy="12" r="9"></circle><path d="M9 9l6 6M15 9l-6 6"></path>',
     wa: '<path d="M21 12a9 9 0 0 1-13.2 8L3 21l1.1-4.6A9 9 0 1 1 21 12z"></path>',
     refresh: '<path d="M20 11a8 8 0 0 0-14.9-3M4 4v4h4M4 13a8 8 0 0 0 14.9 3M20 20v-4h-4"></path>',
+    megaphone: '<path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"></path><path d="M15 9a4 4 0 0 1 0 6M18 6a8 8 0 0 1 0 12"></path>',
+    image: '<rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="9" cy="10" r="2"></circle><path d="M21 17l-5-5-9 8"></path>',
+    send: '<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"></path>',
   };
 
   function when(ms) {
@@ -117,7 +125,7 @@
 
   function route() {
     const r = (location.hash || '').replace(/^#\/?/, '');
-    return ['azan', 'registrations', 'subscribers'].includes(r) ? r : 'azan';
+    return ['azan', 'registrations', 'subscribers', 'promo'].includes(r) ? r : 'azan';
   }
   window.addEventListener('hashchange', () => { stopAudio(); render(); });
 
@@ -204,6 +212,7 @@
       nav('azan', 'Azan approvals', I.music, d ? d.azans.length : null),
       nav('registrations', 'Registrations', I.masjid, pendingRegs),
       nav('subscribers', 'Subscribers', I.people, null),
+      nav('promo', 'Send promotion', I.megaphone, null),
       h('div', { class: 'who' },
         h('span', null, 'Signed in as ' + S.session.username),
         h('button', { type: 'button', onclick: () => signOut() }, 'Sign out')),
@@ -213,6 +222,7 @@
     else if (!d) body = h('div', { class: 'empty' }, S.error || 'Could not load.', ' ', h('button', { class: 'btn btn-line', type: 'button', onclick: () => load() }, 'Try again'));
     else if (r === 'registrations') body = registrationsView(d);
     else if (r === 'subscribers') body = subscribersView(d);
+    else if (r === 'promo') body = promoView(d);
     else body = azanView(d);
     return h('div', { class: 'shell' }, side, h('main', null, body));
   }
@@ -445,6 +455,151 @@
     });
     if (focus) map.setView([focus.lat, focus.lng], 14);
     else map.fitBounds(L.latLngBounds(pts.map((m) => [m.lat, m.lng])).pad(0.3));
+  }
+
+  // ---- Send promotion
+
+  // Shrinks big photos so the upload stays small; small PNG/JPEG go as-is.
+  function readImage(file) {
+    return new Promise((resolve, reject) => {
+      if (!/^image\/(png|jpeg|webp)$/.test(file.type)) { reject(new Error('Choose a PNG or JPG image.')); return; }
+      const fr = new FileReader();
+      fr.onerror = () => reject(new Error('Could not read the image.'));
+      fr.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error('Could not read the image.'));
+        img.onload = () => {
+          const small = file.size <= 1500000 && file.type !== 'image/webp' && img.width <= 2000;
+          let url = fr.result;
+          let type = file.type;
+          if (!small) {
+            const scale = Math.min(1, 1440 / Math.max(img.width, img.height));
+            const c = document.createElement('canvas');
+            c.width = Math.round(img.width * scale);
+            c.height = Math.round(img.height * scale);
+            const g = c.getContext('2d');
+            g.fillStyle = '#ffffff';
+            g.fillRect(0, 0, c.width, c.height);
+            g.drawImage(img, 0, 0, c.width, c.height);
+            url = c.toDataURL('image/jpeg', 0.88);
+            type = 'image/jpeg';
+          }
+          resolve({ url, type, base64: url.split(',')[1], name: file.name, w: img.width, h: img.height });
+        };
+        img.src = fr.result;
+      };
+      fr.readAsDataURL(file);
+    });
+  }
+
+  function promoView(d) {
+    const P = S.promo;
+    const head = h('div', { class: 'head' },
+      h('div', null, h('h1', null, 'Send promotion'),
+        h('p', { class: 'lead' }, 'A notification with an image to everyone following the masjids you choose.')));
+
+    if (P.result) {
+      const r = P.result;
+      return [head, h('section', { class: 'card done' + (r.failed.length ? ' rej' : ''), 'aria-live': 'polite' },
+        h('div', { class: 'row' }, icon(r.failed.length ? I.x : I.check, 22),
+          h('span', { class: 'title' }, 'Sent to ' + r.sent + ' masjid' + (r.sent === 1 ? '' : 's'))),
+        r.failed.length ? h('p', { class: 'meta', style: 'margin:0' }, 'Could not send to: ' + r.failed.join(', ')) : null,
+        h('p', { class: 'meta', style: 'margin:0' }, 'Phones that are offline get it when they come back online.'),
+        h('div', { class: 'actions' },
+          h('button', { class: 'btn btn-line', type: 'button', onclick: () => { S.promo = newPromo(); render(); } }, 'Send another')))];
+    }
+
+    // Form fields keep their own text; typing updates the preview only.
+    const pvTitle = h('span', { class: 'pv-title' }, P.title || 'Title');
+    const pvBody = h('span', { class: 'pv-body' }, P.body || 'Your message');
+    const pvImg = P.image ? h('img', { class: 'pv-img', src: P.image.url, alt: '' }) : null;
+
+    const title = h('input', { id: 'pt', type: 'text', maxlength: 100, value: P.title, placeholder: 'e.g. New update: Salah-e-Waqt 8.12',
+      oninput: (e) => { P.title = e.target.value; pvTitle.textContent = P.title || 'Title'; updateSend(); } });
+    const body = h('textarea', { id: 'pb', rows: 3, maxlength: 500, placeholder: 'e.g. A new Azan screen for every prayer. Tap to update now.',
+      oninput: (e) => { P.body = e.target.value; pvBody.textContent = P.body || 'Your message'; updateSend(); } });
+    body.value = P.body;
+    const link = h('input', { id: 'pl', type: 'url', value: P.link, placeholder: 'https://…',
+      oninput: (e) => { P.link = e.target.value.trim(); } });
+
+    const fileIn = h('input', { id: 'pi', type: 'file', accept: 'image/png,image/jpeg,image/webp', class: 'sr-only',
+      onchange: async (e) => {
+        const f = e.target.files && e.target.files[0];
+        if (!f) return;
+        try { P.image = await readImage(f); } catch (ex) { toast(ex.message); }
+        render();
+      } });
+    const imageBox = h('div', { class: 'field' },
+      h('span', { class: 'lbl' }, 'Image'),
+      P.image
+        ? h('div', { class: 'imgpick' }, h('img', { src: P.image.url, alt: 'Chosen image' }),
+            h('div', { class: 'grow' }, h('span', { class: 'title' }, P.image.name), h('span', { class: 'meta' }, P.image.w + ' × ' + P.image.h)),
+            h('label', { for: 'pi', class: 'btn btn-line' }, 'Change'),
+            h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => { P.image = null; render(); } }, 'Remove'))
+        : h('label', { for: 'pi', class: 'drop' }, icon(I.image, 28), h('span', null, 'Upload image'), h('small', null, 'PNG or JPG. Portrait 1080 × 1350 works well.')),
+      fileIn);
+
+    // Masjid picker
+    const ms = d.masjids.slice().sort((a, b) => a.name.localeCompare(b.name));
+    const allOn = ms.length > 0 && ms.every((m) => P.chosen.has(m.id));
+    const reach = ms.filter((m) => P.chosen.has(m.id)).reduce((n, m) => n + m.total, 0);
+    const allBox = h('input', { type: 'checkbox', id: 'pall', checked: allOn,
+      onchange: (e) => { P.chosen = e.target.checked ? new Set(ms.map((m) => m.id)) : new Set(); render(); } });
+    const picker = h('fieldset', { class: 'picker' },
+      h('legend', null, 'Masjids'),
+      h('label', { class: 'pick all', for: 'pall' }, allBox, h('span', { class: 'grow' }, h('span', { class: 'title' }, 'Select all masjids'),
+        h('span', { class: 'meta' }, ms.length + ' masjids'))),
+      ms.map((m) => {
+        const id = 'pm-' + m.id.replace(/[^a-z0-9]/gi, '-');
+        return h('label', { class: 'pick', for: id },
+          h('input', { type: 'checkbox', id, checked: P.chosen.has(m.id),
+            onchange: (e) => { e.target.checked ? P.chosen.add(m.id) : P.chosen.delete(m.id); render(); } }),
+          h('span', { class: 'grow' }, h('span', { class: 'title' }, m.name), h('span', { class: 'meta' }, m.id)),
+          h('span', { class: 'meta' }, m.total + ' followers'));
+      }));
+
+    const sendBtn = h('button', { class: 'btn btn-gold', type: 'button', onclick: sendPromo }, icon(I.send), 'Send');
+    const summary = h('p', { class: 'meta', style: 'margin:0' });
+    function updateSend() {
+      const n = P.chosen.size;
+      sendBtn.disabled = P.sending || !P.title.trim() || !P.body.trim() || !n;
+      sendBtn.lastChild.textContent = P.sending ? 'Sending…' : n ? 'Send to ' + n + ' masjid' + (n === 1 ? '' : 's') : 'Send';
+      summary.textContent = n ? 'About ' + reach + ' followers will get it.' : 'Choose at least one masjid.';
+    }
+    updateSend();
+
+    async function sendPromo() {
+      const n = P.chosen.size;
+      const all = allOn;
+      if (!confirm('Send "' + P.title.trim() + '" to ' + (all ? 'ALL ' : '') + n + ' masjid' + (n === 1 ? '' : 's') +
+        ' (about ' + reach + ' followers)?\n\nA notification cannot be taken back.')) return;
+      P.sending = true;
+      updateSend();
+      try {
+        const out = await api('sendPromo', {
+          title: P.title.trim(), body: P.body.trim(), clickUrl: P.link || '',
+          all, mosqueIds: all ? [] : [...P.chosen],
+          imageBase64: P.image ? P.image.base64 : null, imageType: P.image ? P.image.type : null,
+        });
+        P.result = { sent: out.sent, failed: out.failed || [] };
+      } catch (e) {
+        toast(e.message);
+      }
+      P.sending = false;
+      render();
+    }
+
+    const form = h('div', { class: 'card promo-form' },
+      h('div', { class: 'field' }, h('label', { for: 'pt' }, 'Title'), title),
+      h('div', { class: 'field' }, h('label', { for: 'pb' }, 'Message'), body),
+      imageBox,
+      h('div', { class: 'field' }, h('label', { for: 'pl' }, 'Link when tapped (optional)'), link),
+      picker,
+      h('div', { class: 'sendbar' }, summary, sendBtn));
+    const preview = h('aside', { class: 'preview', 'aria-label': 'Notification preview' },
+      h('span', { class: 'lbl' }, 'PREVIEW'),
+      h('div', { class: 'pv' }, h('span', { class: 'pv-app' }, 'Salah-e-Waqt · now'), pvTitle, pvBody, pvImg));
+    return [head, h('div', { class: 'promo' }, form, preview)];
   }
 
   // ---------------------------------------------------------------- start
