@@ -414,9 +414,14 @@
     },
       h('td', null, m.name, h('small', null, m.id)),
       h('td', { class: 'n', style: 'color:var(--gold-text);font-weight:600' }, m.total),
-      h('td', { class: 'n' }, m.active)));
+      h('td', { class: 'n' }, m.active),
+      h('td', { class: 'n' }, h('a', {
+        href: 'poster.html?m=' + encodeURIComponent(m.id), target: '_blank', rel: 'noopener',
+        onclick: (e) => e.stopPropagation(), 'aria-label': 'Poster for ' + m.name,
+      }, 'Poster'))));
     const table = h('div', { class: 'tablebox' }, h('table', null,
-      h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Masjid'), h('th', { scope: 'col', class: 'n' }, 'Followers'), h('th', { scope: 'col', class: 'n' }, 'Active'))),
+      h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Masjid'), h('th', { scope: 'col', class: 'n' }, 'Followers'),
+        h('th', { scope: 'col', class: 'n' }, 'Active'), h('th', { scope: 'col', class: 'n' }, h('span', { class: 'sr-only' }, 'Poster')))),
       h('tbody', null, rows)));
     return [head, stats, h('div', { class: 'split' }, h('div', { id: 'map', role: 'region', 'aria-label': 'Map of masjids' }), table)];
   }
