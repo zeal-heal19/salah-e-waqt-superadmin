@@ -1,0 +1,11 @@
+{
+  "hosting": {
+    "public": "site",
+    "cleanUrls": true,
+    "rewrites": [{ "source": "/", "destination": "/get.html" }],
+    "headers": [
+      { "source": "/get.html", "headers": [{ "key": "Cache-Control", "value": "public, max-age=300" }] },
+      { "source": "/links.js", "headers": [{ "key": "Cache-Control", "value": "public, max-age=300" }] }
+    ]
+  }
+}
