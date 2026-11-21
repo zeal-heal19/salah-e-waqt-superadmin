@@ -44,7 +44,13 @@ a:focus-visible { outline: 2px solid var(--gold-text); outline-offset: 2px; }
   var android = L.android + (m ? '&referrer=' + encodeURIComponent('utm_source=poster&masjid=' + m) : '');
   var ua = navigator.userAgent || '';
   var isIos = /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
-  var isAndroid = /Android/i.test(ua);
+  // Android tablets often load sites in "desktop mode", which hides
+  // "Android" from the user agent (it says Linux). Also check Chrome's
+  // platform hint, and treat a touch-screen Linux device as Android.
+  var uaData = navigator.userAgentData;
+  var isAndroid = /Android/i.test(ua) ||
+    !!(uaData && /Android/i.test(uaData.platform || '')) ||
+    (!isIos && /Linux/i.test(ua) && !/CrOS/i.test(ua) && navigator.maxTouchPoints > 1);
 
   document.getElementById('android').href = android;
   if (L.ios) {
