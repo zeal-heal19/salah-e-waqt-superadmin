@@ -4,7 +4,8 @@
 (function () {
   'use strict';
 
-  const PLAY = 'https://play.google.com/store/apps/details?id=com.salah_e_waqt.app';
+  // The QR opens get.html, which picks the right store (Android / iPhone).
+  const GET = (window.APP_LINKS && window.APP_LINKS.get) || new URL('get.html', location.href).href.split('?')[0];
   const GENERIC = ['masjid', 'masjide', 'masjid-e', 'mosque', 'jama', 'jamia', 'jame', 'jumma', 'the', 'shree', 'shri',
     'hazrat', 'sunni', 'trust', 'e'];
   const $ = (id) => document.getElementById(id);
@@ -32,9 +33,9 @@
     el.style.fontSize = (len <= 20 ? 80 : len <= 28 ? 68 : len <= 38 ? 56 : len <= 52 ? 46 : 38) + 'px';
   }
 
-  function drawQr() {
+  function drawQr(id) {
     const qr = qrcode(0, 'M');
-    qr.addData(PLAY);
+    qr.addData(GET + '?m=' + encodeURIComponent(id));
     qr.make();
     const n = qr.getModuleCount();
     const ns = 'http://www.w3.org/2000/svg';
@@ -78,7 +79,12 @@
     $('pResult').textContent = [name, info.area].filter(Boolean).join(', ');
     document.title = name + ' · Poster';
     fileName = 'Salah-e-Waqt poster - ' + name.replace(/[^\p{L}\p{N} ]/gu, '').trim() + '.png';
-    drawQr();
+    drawQr(id);
+    const L = window.APP_LINKS || {};
+    if (L.ios) {
+      $('pStore').textContent = 'Install the app from Google Play or the App Store';
+      $('pFoot').innerHTML = 'Free on <b>Google Play</b> and the <b>App Store</b>';
+    }
     msg.hidden = true;
     $('stage').hidden = false;
     fit();
