@@ -135,7 +135,7 @@
     if (!quiet) { S.loading = true; render(); }
     try {
       const out = await api('overview');
-      S.data = { azans: out.azans, registrations: out.registrations, masjids: out.masjids };
+      S.data = { azans: out.azans, registrations: out.registrations, masjids: out.masjids, nextUsername: out.nextUsername };
       S.error = null;
     } catch (e) {
       S.error = e.message;
@@ -317,30 +317,42 @@
         onclick: () => { S.regFilter = f; render(); },
       }, f[0].toUpperCase() + f.slice(1) + ' (' + d.registrations.filter((x) => x.status === f).length + ')')));
     const head = h('div', { class: 'head' },
-      h('div', null, h('h1', null, 'Registrations'), h('p', { class: 'lead' }, "Masjids that registered but weren't found in the Waqf list.")),
+      h('div', null, h('h1', null, 'Registrations'), h('p', { class: 'lead' }, 'New masjids waiting for approval.',
+        d.nextUsername ? [' Next login: ', h('strong', { style: 'color:var(--gold-text)' }, d.nextUsername)] : null)),
       tabs, refreshBtn());
 
     // Just-decided cards stay at the top until refreshed away.
     const decided = Object.entries(S.results).map(([id, r]) => resultCard(id, r));
     const list = d.registrations.filter((x) => x.status === S.regFilter && !S.results[x.id]);
     if (!list.length && !decided.length) return [head, h('div', { class: 'empty' }, 'Nothing here.')];
-    return [head, decided, list.map(regCard)];
+    const foot = S.regFilter === 'pending' && list.length > 1
+      ? h('p', { class: 'meta' }, 'The number is given when you approve, so whichever you approve first gets ' + (d.nextUsername || 'the next number') + '.')
+      : null;
+    return [head, decided, list.map((r) => regCard(r, d.nextUsername)), foot];
   }
 
-  function regCard(r) {
+  function regCard(r, nextUsername) {
     const key = 'reg/' + r.id;
     const busy = S.busy === key;
-    const place = [r.area, r.city, r.state].filter(Boolean).join(', ');
-    const card = h('section', { class: 'card' },
+    const dup = r.status === 'pending' && r.possibleDuplicate;
+    const place = [r.area, r.city, [r.state, r.pincode].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+    const card = h('section', { class: 'card' + (dup ? ' dup' : '') },
       h('div', { class: 'row' },
         h('div', { class: 'grow' },
           h('span', { class: 'title' }, r.mosqueName || '(no name)'),
           h('span', { class: 'meta' }, [place, r.submittedAt ? 'submitted ' + when(r.submittedAt) : ''].filter(Boolean).join(' · '))),
         r.status !== 'pending' ? h('span', { class: 'pill ' + (r.status === 'approved' ? 'ok' : 'no') }, r.status) : null,
+        dup ? h('span', { class: 'pill dup' }, '⚠ POSSIBLE DUPLICATE') : null,
         r.lat && r.lng ? h('a', { href: 'https://www.google.com/maps/search/?api=1&query=' + r.lat + ',' + r.lng, target: '_blank', rel: 'noopener' }, 'See on map') : null),
+      dup ? h('div', { class: 'dupbox' },
+        h('span', null, 'Matching name in the same PIN code / area, city and state:'),
+        (r.duplicateMatches || []).map((m) => h('div', { class: 'm' },
+          h('span', { class: 'grow' }, h('b', null, m.name || '(no name)'), m.place ? ' · ' + m.place : ''),
+          h('span', { class: 'pill ' + (m.status === 'live' ? 'ok' : '') }, m.status === 'live' ? 'Live · ' + m.id : 'Request · ' + m.status),
+          ))) : null,
       h('dl', { class: 'facts' },
-        fact('Registration no.', r.regNumber),
-        fact(r.status === 'approved' ? 'Username' : 'Username to create', r.approvedUsername || r.username),
+        r.regNumber ? fact('Registration no.', r.regNumber) : null,
+        fact(r.status === 'approved' ? 'Username' : 'Login on approval', r.approvedUsername || nextUsername),
         fact('Contact phone', (r.phone || '—') + (r.phoneVerified ? ' (verified)' : '')),
         r.rejectionReason ? fact('Reason', r.rejectionReason) : null,
         r.decidedAt ? fact(r.status === 'approved' ? 'Approved' : 'Rejected', when(r.decidedAt)) : null));
@@ -350,12 +362,13 @@
         h('button', {
           class: 'btn btn-green', type: 'button', disabled: busy,
           onclick: () => {
-            if (!confirm('Approve "' + r.mosqueName + '"?\n\nThis creates the masjid and its login ' + r.username + '.')) return;
+            if (!confirm('Approve "' + r.mosqueName + '"?\n\nThis creates the masjid and its login ' + (nextUsername || 'SW-MASJID-###') + '.' +
+              (dup ? '\n\nIt looks like a masjid we may already have. Approve only if you checked it is a different masjid.' : ''))) return;
             act(key, 'approveRegistration', { id: r.id }, r.mosqueName + ' is live',
               (out) => { S.results[r.id] = { kind: 'approved', name: r.mosqueName, username: out.username, phone: out.phone, message: out.message }; });
           },
-        }, busy ? 'Working…' : 'Approve and create login')));
-      if (S.rejecting === key) card.append(rejectBox(key, 'Reason (sent to the masjid)', 'e.g. Registration number does not match the Waqf certificate', 'Reject registration',
+        }, busy ? 'Working…' : (dup ? 'Approve anyway' : 'Approve and create login'))));
+      if (S.rejecting === key) card.append(rejectBox(key, 'Reason (sent to the masjid)', 'e.g. This masjid is already registered', 'Reject registration',
         (reason) => act(key, 'rejectRegistration', { id: r.id, reason }, 'Registration rejected',
           (out) => { S.results[r.id] = { kind: 'rejected', name: r.mosqueName, phone: out.phone, message: out.message }; })));
     } else {
