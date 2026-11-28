@@ -23,7 +23,8 @@
     promo: newPromo(),
   };
   function newPromo() {
-    return { title: '', body: '', link: PLAY_STORE, image: null, chosen: new Set(), sending: false, result: null };
+    return { title: '', body: '', link: PLAY_STORE, location: '', whatsapp: '', main: '', sponsored: false, days: 7,
+      image: null, chosen: new Set(), sending: false, result: null };
   }
   const audio = new Audio();
   let playingKey = null;
@@ -75,6 +76,7 @@
     megaphone: '<path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"></path><path d="M15 9a4 4 0 0 1 0 6M18 6a8 8 0 0 1 0 12"></path>',
     image: '<rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="9" cy="10" r="2"></circle><path d="M21 17l-5-5-9 8"></path>',
     send: '<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"></path>',
+    pin: '<path d="M12 22s-8-6.4-8-12a8 8 0 0 1 16 0c0 5.6-8 12-8 12z"></path><circle cx="12" cy="10" r="3"></circle>',
   };
 
   function when(ms) {
@@ -523,22 +525,53 @@
           h('span', { class: 'title' }, 'Sent to ' + r.sent + ' masjid' + (r.sent === 1 ? '' : 's'))),
         r.failed.length ? h('p', { class: 'meta', style: 'margin:0' }, 'Could not send to: ' + r.failed.join(', ')) : null,
         h('p', { class: 'meta', style: 'margin:0' }, 'Phones that are offline get it when they come back online.'),
+        r.offerId ? h('p', { class: 'meta', style: 'margin:0' }, 'It stays in the app\'s Local offers for ' + r.days + ' day' + (r.days === 1 ? '' : 's') + '. Remove it any time under Active offers.') : null,
         h('div', { class: 'actions' },
           h('button', { class: 'btn btn-line', type: 'button', onclick: () => { S.promo = newPromo(); render(); } }, 'Send another')))];
     }
 
     // Form fields keep their own text; typing updates the preview only.
-    const pvTitle = h('span', { class: 'pv-title' }, P.title || 'Title');
+    const pvText = () => (P.sponsored ? 'Sponsored · ' : '') + (P.title || (P.sponsored ? 'Business name' : 'Title'));
+    const pvTitle = h('span', { class: 'pv-title' }, pvText());
     const pvBody = h('span', { class: 'pv-body' }, P.body || 'Your message');
     const pvImg = P.image ? h('img', { class: 'pv-img', src: P.image.url, alt: '' }) : null;
 
     const title = h('input', { id: 'pt', type: 'text', maxlength: 100, value: P.title, placeholder: 'e.g. New update: Salah-e-Waqt 8.12',
-      oninput: (e) => { P.title = e.target.value; pvTitle.textContent = P.title || 'Title'; updateSend(); } });
+      oninput: (e) => { P.title = e.target.value; pvTitle.textContent = pvText(); updateSend(); } });
     const body = h('textarea', { id: 'pb', rows: 3, maxlength: 500, placeholder: 'e.g. A new Azan screen for every prayer. Tap to update now.',
       oninput: (e) => { P.body = e.target.value; pvBody.textContent = P.body || 'Your message'; updateSend(); } });
     body.value = P.body;
+    // Buttons in the app: Location, WhatsApp, Website (each optional).
     const link = h('input', { id: 'pl', type: 'url', value: P.link, placeholder: 'https://…',
-      oninput: (e) => { P.link = e.target.value.trim(); } });
+      oninput: (e) => { P.link = e.target.value.trim(); renderMain(); } });
+    const loc = h('input', { id: 'ploc', type: 'url', value: P.location, placeholder: 'https://maps.app.goo.gl/…',
+      oninput: (e) => { P.location = e.target.value.trim(); renderMain(); } });
+    const wa = h('input', { id: 'pwa', type: 'tel', inputmode: 'numeric', maxlength: 14, value: P.whatsapp, placeholder: '10-digit number',
+      oninput: (e) => { P.whatsapp = e.target.value.replace(/\D/g, ''); renderMain(); } });
+    const mainBox = h('div', { class: 'field' });
+    function renderMain() {
+      const given = [['location', 'Location', P.location], ['whatsapp', 'WhatsApp', P.whatsapp], ['website', 'Website / link', P.link]]
+        .filter((x) => x[2]);
+      mainBox.replaceChildren();
+      if (given.length < 2) { P.main = ''; return; }
+      if (!given.some((x) => x[0] === P.main)) P.main = given[0][0];
+      const sel = h('select', { id: 'pmain', onchange: (e) => { P.main = e.target.value; } },
+        given.map((x) => h('option', { value: x[0], selected: x[0] === P.main }, x[1])));
+      mainBox.append(h('label', { for: 'pmain' }, 'Main button (for phones on older app versions)'), sel,
+        h('small', { class: 'meta' }, 'The new app shows all buttons; older versions show only this one as "Click Here".'));
+    }
+    renderMain();
+
+    // Sponsored business offer: "Sponsored · " in front, saved in Local offers.
+    const days = h('input', { id: 'pdays', type: 'number', min: 1, max: 30, value: P.days,
+      oninput: (e) => { P.days = Math.min(Math.max(parseInt(e.target.value, 10) || 7, 1), 30); } });
+    const sponsoredBox = h('div', { class: 'field' },
+      h('label', { class: 'pick all', for: 'psp' },
+        h('input', { type: 'checkbox', id: 'psp', checked: P.sponsored,
+          onchange: (e) => { P.sponsored = e.target.checked; render(); } }),
+        h('span', { class: 'grow' }, h('span', { class: 'title' }, 'Sponsored business offer'),
+          h('span', { class: 'meta' }, 'Adds "Sponsored · " to the title and keeps it in the app\'s Local offers. Halal, family-friendly businesses only.'))),
+      P.sponsored ? h('div', { class: 'field' }, h('label', { for: 'pdays' }, 'Show in Local offers for (days)'), days) : null);
 
     const fileIn = h('input', { id: 'pi', type: 'file', accept: 'image/png,image/jpeg,image/webp', class: 'sr-only',
       onchange: async (e) => {
@@ -595,11 +628,14 @@
       updateSend();
       try {
         const out = await api('sendPromo', {
-          title: P.title.trim(), body: P.body.trim(), clickUrl: P.link || '',
+          title: P.title.trim(), body: P.body.trim(), website: P.link || '',
+          location: P.location || '', whatsapp: P.whatsapp || '', primary: P.main || '',
+          sponsored: P.sponsored, showDays: P.days,
           all, mosqueIds: all ? [] : [...P.chosen],
           imageBase64: P.image ? P.image.base64 : null, imageType: P.image ? P.image.type : null,
         });
-        P.result = { sent: out.sent, failed: out.failed || [] };
+        P.result = { sent: out.sent, failed: out.failed || [], offerId: out.offerId || null, days: P.sponsored ? P.days : 0 };
+        S.offers = null; // reload the Active offers list
       } catch (e) {
         toast(e.message);
       }
@@ -608,16 +644,48 @@
     }
 
     const form = h('div', { class: 'card promo-form' },
-      h('div', { class: 'field' }, h('label', { for: 'pt' }, 'Title'), title),
+      sponsoredBox,
+      h('div', { class: 'field' }, h('label', { for: 'pt' }, P.sponsored ? 'Business name' : 'Title'), title),
       h('div', { class: 'field' }, h('label', { for: 'pb' }, 'Message'), body),
       imageBox,
-      h('div', { class: 'field' }, h('label', { for: 'pl' }, 'Link when tapped (optional)'), link),
+      h('fieldset', { class: 'picker' }, h('legend', null, 'Buttons in the app (all optional)'),
+        h('div', { class: 'field' }, h('label', { for: 'ploc' }, 'Location (Google Maps link)'), loc),
+        h('div', { class: 'field' }, h('label', { for: 'pwa' }, 'WhatsApp number'), wa,
+          h('small', { class: 'meta' }, 'Opens WhatsApp with "Assalamu Alaikum, I saw your offer on Salah-e-Waqt." typed.')),
+        h('div', { class: 'field' }, h('label', { for: 'pl' }, 'Website / other link'), link),
+        mainBox),
       picker,
       h('div', { class: 'sendbar' }, summary, sendBtn));
     const preview = h('aside', { class: 'preview', 'aria-label': 'Notification preview' },
       h('span', { class: 'lbl' }, 'PREVIEW'),
       h('div', { class: 'pv' }, h('span', { class: 'pv-app' }, 'Salah-e-Waqt · now'), pvTitle, pvBody, pvImg));
-    return [head, h('div', { class: 'promo' }, form, preview)];
+    return [head, h('div', { class: 'promo' }, form, preview), offersList()];
+  }
+
+  // Active offers in the app's Local offers, each with Remove.
+  function offersList() {
+    if (S.offers === undefined || S.offers === null) {
+      if (!S.offersLoading) {
+        S.offersLoading = true;
+        api('listOffers').then((out) => { S.offers = out.offers; }).catch((e) => { S.offers = []; toast(e.message); })
+          .finally(() => { S.offersLoading = false; render(); });
+      }
+      return h('section', { class: 'card' }, h('h2', null, 'Active offers'), h('p', { class: 'meta' }, 'Loading…'));
+    }
+    async function remove(o) {
+      if (!confirm('Remove "' + o.business + '" from the app\'s Local offers now?')) return;
+      try { await api('removeOffer', { id: o.id }); S.offers = S.offers.filter((x) => x.id !== o.id); toast('Removed.'); }
+      catch (e) { toast(e.message); }
+      render();
+    }
+    return h('section', { class: 'card', style: 'margin-top:20px' },
+      h('h2', null, 'Active offers'),
+      S.offers.length ? null : h('p', { class: 'meta', style: 'margin:0' }, 'No sponsored offers are showing right now.'),
+      S.offers.map((o) => h('div', { class: 'pick' },
+        o.imageUrl ? h('img', { src: o.imageUrl, alt: '', style: 'width:44px;height:56px;object-fit:cover;border-radius:6px;flex:none' }) : null,
+        h('span', { class: 'grow' }, h('span', { class: 'title' }, o.business),
+          h('span', { class: 'meta' }, (o.all ? 'All masjids' : o.masjids + ' masjid' + (o.masjids === 1 ? '' : 's')) + ' · until ' + when(o.showUntil))),
+        h('button', { class: 'btn btn-line', type: 'button', onclick: () => remove(o) }, 'Remove'))));
   }
 
   // ---------------------------------------------------------------- start
